@@ -8,18 +8,20 @@ interface YearPoint {
   btcPrice: number;
 }
 
-const BASE_BTC_PRICE = 100000;
+const BASE_BTC_PRICE_USD = 100000;
+// Approximate, fixed rate used only to illustrate the currency toggle — not a live quote.
+const USD_TO_EUR = 0.92;
 const YEARS = 10;
 
-function projectScenario(investment: number, m2Growth: number, adoptionRate: number): YearPoint[] {
+function projectScenario(investment: number, m2Growth: number, adoptionRate: number, basePrice: number): YearPoint[] {
   const currentYear = new Date().getFullYear();
   const safeInvestment = Number.isFinite(investment) && investment > 0 ? investment : 0;
-  const initialTokens = safeInvestment / BASE_BTC_PRICE;
+  const initialTokens = safeInvestment / basePrice;
   const data: YearPoint[] = [];
 
   for (let i = 0; i <= YEARS; i++) {
     const priceMultiplier = Math.pow(1 + m2Growth / 100, i) * Math.pow(1 + adoptionRate / 100, i);
-    const btcPrice = BASE_BTC_PRICE * priceMultiplier;
+    const btcPrice = basePrice * priceMultiplier;
     data.push({ year: currentYear + i, value: initialTokens * btcPrice, btcPrice });
   }
 
@@ -70,9 +72,10 @@ export function Simulator() {
     data: YearPoint[];
   } | null>(null);
 
+  const basePrice = currency === 'USD' ? BASE_BTC_PRICE_USD : BASE_BTC_PRICE_USD * USD_TO_EUR;
   const projection = useMemo(
-    () => projectScenario(investment, m2Growth, adoptionRate),
-    [investment, m2Growth, adoptionRate]
+    () => projectScenario(investment, m2Growth, adoptionRate, basePrice),
+    [investment, m2Growth, adoptionRate, basePrice]
   );
   const finalPoint = projection[projection.length - 1];
 
@@ -81,6 +84,14 @@ export function Simulator() {
 
   const symbol = currency === 'USD' ? '$' : '€';
   const fmt = (n: number) => `${symbol}${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+
+  // Switching currency should convert the actual figures, not just relabel them.
+  const handleCurrencyChange = (next: 'USD' | 'EUR') => {
+    if (next === currency) return;
+    const rate = next === 'EUR' ? USD_TO_EUR : 1 / USD_TO_EUR;
+    setInvestment(v => Math.round(v * rate));
+    setCurrency(next);
+  };
 
   // Track container resize (the chart needs to know its own pixel width to redraw).
   useEffect(() => {
@@ -320,18 +331,19 @@ export function Simulator() {
             <div className="pt-4 border-t border-white/10 space-y-4">
               <div className="flex gap-4">
                 <button
-                  onClick={() => setCurrency('USD')}
+                  onClick={() => handleCurrencyChange('USD')}
                   className={`flex-1 text-xs uppercase tracking-widest py-2 border ${currency === 'USD' ? 'border-[#F7931A] text-[#F7931A] bg-[#F7931A]/10' : 'border-white/20 text-white/60'} transition-colors cursor-pointer`}
                 >
                   USD
                 </button>
                 <button
-                  onClick={() => setCurrency('EUR')}
+                  onClick={() => handleCurrencyChange('EUR')}
                   className={`flex-1 text-xs uppercase tracking-widest py-2 border ${currency === 'EUR' ? 'border-[#F7931A] text-[#F7931A] bg-[#F7931A]/10' : 'border-white/20 text-white/60'} transition-colors cursor-pointer`}
                 >
                   EUR
                 </button>
               </div>
+              <p className="text-[10px] font-mono opacity-40">Conversión aproximada (1 $ ≈ {USD_TO_EUR.toFixed(2)} €), solo ilustrativa.</p>
 
               <div className="space-y-2">
                 <label className="text-xs uppercase tracking-widest opacity-80">Inversión Inicial</label>

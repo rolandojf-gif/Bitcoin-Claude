@@ -285,6 +285,7 @@ export function PositionTracker() {
                   <input
                     type="number"
                     min={0}
+                    step={500}
                     value={p.amount || ''}
                     onChange={e => updatePurchase(p.id, { amount: Math.max(0, Number(e.target.value) || 0) })}
                     className="bg-transparent outline-none font-mono w-24 text-white text-sm"

@@ -46,6 +46,10 @@ function fmtEur(n: number) {
   return `€${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 }
 
+function fmtUsd(n: number) {
+  return `$${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+}
+
 function fmtBtc(n: number) {
   return `${n.toLocaleString(undefined, { maximumFractionDigits: 8 })} BTC`;
 }
@@ -104,6 +108,13 @@ export function PositionTracker() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [loaded, baseBtc, baseAvgPrice, currentBtcPrice, purchases]);
 
+  // Prefer the FX rate implied by the live quotes; fall back to the fixed approximation.
+  const usdToEur = livePrice.price && livePrice.price.usd > 0
+    ? livePrice.price.eur / livePrice.price.usd
+    : USD_TO_EUR;
+  const eurToUsd = 1 / usdToEur;
+  const usingLiveFx = livePrice.price !== null;
+
   const steps = useMemo(() => {
     const safeBaseBtc = Math.max(0, baseBtc || 0);
     const safeBaseAvgPrice = Math.max(0, baseAvgPrice || 0);
@@ -123,7 +134,7 @@ export function PositionTracker() {
       const amount = Math.max(0, p.amount || 0);
       const price = Math.max(0, p.price || 0);
       const btcAdded = price > 0 ? amount / price : 0;
-      const costAdded = p.currency === 'EUR' ? amount : amount * USD_TO_EUR;
+      const costAdded = p.currency === 'EUR' ? amount : amount * usdToEur;
       btc += btcAdded;
       cost += costAdded;
       rows.push({
@@ -136,7 +147,7 @@ export function PositionTracker() {
     });
 
     return rows;
-  }, [baseBtc, baseAvgPrice, purchases]);
+  }, [baseBtc, baseAvgPrice, purchases, usdToEur]);
 
   const final = steps[steps.length - 1];
   const base = steps[0];
@@ -373,8 +384,13 @@ export function PositionTracker() {
               <p className="text-lg font-mono text-[#F5F5F5] mt-1">
                 {fmtEur(base.avgPrice)} → <span className="text-[#F7931A]">{fmtEur(final.avgPrice)}</span>
               </p>
+              <p className="text-xs font-mono opacity-50 mt-0.5">
+                {fmtUsd(base.avgPrice * eurToUsd)} → <span className="text-[#F7931A]/70">{fmtUsd(final.avgPrice * eurToUsd)}</span>
+              </p>
               <p className="text-[10px] font-mono opacity-40 mt-1">
-                {avgPriceDelta === 0 ? 'Sin cambio' : avgPriceDelta < 0 ? `↓ baja ${fmtEur(Math.abs(avgPriceDelta))}` : `↑ sube ${fmtEur(avgPriceDelta)}`}
+                {avgPriceDelta === 0
+                  ? 'Sin cambio'
+                  : `${avgPriceDelta < 0 ? '↓ baja' : '↑ sube'} ${fmtEur(Math.abs(avgPriceDelta))} · ${fmtUsd(Math.abs(avgPriceDelta) * eurToUsd)}`}
               </p>
             </div>
             <div>
@@ -392,7 +408,7 @@ export function PositionTracker() {
         )}
 
         <p className="text-[10px] font-mono normal-case opacity-40 leading-relaxed">
-          Herramienta de cálculo, no una recomendación de compra. El precio de conversión USD/EUR usado ({USD_TO_EUR.toFixed(2)}) es aproximado.
+          Herramienta de cálculo, no una recomendación de compra. Conversión USD/EUR usada: 1 $ ≈ {usdToEur.toFixed(4)} € {usingLiveFx ? '(tipo implícito de las cotizaciones en vivo)' : '(aproximación fija: no hay precio en vivo disponible)'}.
         </p>
       </div>
     </div>

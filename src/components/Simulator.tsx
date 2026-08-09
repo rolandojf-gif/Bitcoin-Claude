@@ -352,6 +352,7 @@ export function Simulator() {
                   <input
                     type="number"
                     min={0}
+                    step={1000}
                     value={investment}
                     onChange={e => setInvestment(Math.max(0, Number(e.target.value) || 0))}
                     className="bg-transparent outline-none font-mono w-full text-white"

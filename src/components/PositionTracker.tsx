@@ -160,6 +160,7 @@ export function PositionTracker() {
             <input
               type="number"
               min={0}
+              step={1000}
               value={baseAvgPrice || ''}
               onChange={e => setBaseAvgPrice(Math.max(0, Number(e.target.value) || 0))}
               placeholder="p.ej. 95000"
@@ -174,6 +175,7 @@ export function PositionTracker() {
             <input
               type="number"
               min={0}
+              step={1000}
               value={currentBtcPrice || ''}
               onChange={e => setCurrentBtcPrice(Math.max(0, Number(e.target.value) || 0))}
               placeholder="p.ej. 55000"
@@ -224,6 +226,7 @@ export function PositionTracker() {
                   <input
                     type="number"
                     min={0}
+                    step={1000}
                     value={p.price || ''}
                     onChange={e => updatePurchase(p.id, { price: Math.max(0, Number(e.target.value) || 0) })}
                     className="bg-transparent outline-none font-mono w-24 text-white text-sm"

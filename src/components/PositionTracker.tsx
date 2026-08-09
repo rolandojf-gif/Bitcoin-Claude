@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { Lock, Plus, RefreshCw, Trash2 } from 'lucide-react';
-import { InfoTip, USD_TO_EUR } from './Simulator';
+import { InfoTip } from './Simulator';
+import { useLiveBtcPrice } from '../hooks/useLiveBtcPrice';
 
 type Currency = 'EUR' | 'USD';
 
@@ -27,19 +28,51 @@ const DEFAULT_STATE: StoredState = {
   purchases: [],
 };
 
+function toNumber(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+/**
+ * Stored data is user-editable (and can survive a schema change), so every field
+ * is validated rather than trusted — a malformed payload used to crash the page.
+ */
 function loadState(): StoredState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_STATE;
-    const parsed = JSON.parse(raw);
-    return { ...DEFAULT_STATE, ...parsed };
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) return DEFAULT_STATE;
+
+    const obj = parsed as Record<string, unknown>;
+    const rawPurchases = Array.isArray(obj.purchases) ? obj.purchases : [];
+
+    return {
+      baseBtc: toNumber(obj.baseBtc),
+      baseAvgPrice: toNumber(obj.baseAvgPrice),
+      currentBtcPrice: toNumber(obj.currentBtcPrice),
+      purchases: rawPurchases
+        .filter((p): p is Record<string, unknown> => typeof p === 'object' && p !== null)
+        .map(p => ({
+          id: typeof p.id === 'string' && p.id ? p.id : makeId(),
+          amount: toNumber(p.amount),
+          currency: p.currency === 'USD' ? 'USD' : 'EUR',
+          price: toNumber(p.price),
+        })),
+    };
   } catch {
     return DEFAULT_STATE;
   }
 }
 
+/** crypto.randomUUID needs a secure context; fall back so the button never throws. */
+function makeId(): string {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `p-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 function newPurchase(): Purchase {
-  return { id: crypto.randomUUID(), amount: 1000, currency: 'EUR', price: 90000 };
+  return { id: makeId(), amount: 1000, currency: 'EUR', price: 90000 };
 }
 
 function fmtEur(n: number) {
@@ -54,36 +87,6 @@ function fmtBtc(n: number) {
   return `${n.toLocaleString(undefined, { maximumFractionDigits: 8 })} BTC`;
 }
 
-interface LivePrice {
-  usd: number;
-  eur: number;
-}
-
-function useLiveBtcPrice() {
-  const [price, setPrice] = useState<LivePrice | null>(null);
-  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
-
-  const fetchPrice = useCallback(() => {
-    setStatus('loading');
-    fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd,eur')
-      .then(res => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.json();
-      })
-      .then(data => {
-        setPrice({ usd: data.bitcoin.usd, eur: data.bitcoin.eur });
-        setUpdatedAt(new Date());
-        setStatus('ready');
-      })
-      .catch(() => setStatus('error'));
-  }, []);
-
-  useEffect(() => { fetchPrice(); }, [fetchPrice]);
-
-  return { price, status, updatedAt, refresh: fetchPrice };
-}
-
 export function PositionTracker() {
   const [baseBtc, setBaseBtc] = useState(0);
   const [baseAvgPrice, setBaseAvgPrice] = useState(0);
@@ -91,6 +94,7 @@ export function PositionTracker() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [loaded, setLoaded] = useState(false);
   const livePrice = useLiveBtcPrice();
+  const fieldId = useId();
 
   // Load once on mount, from this browser only — never from the network or the repo.
   useEffect(() => {
@@ -108,12 +112,7 @@ export function PositionTracker() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [loaded, baseBtc, baseAvgPrice, currentBtcPrice, purchases]);
 
-  // Prefer the FX rate implied by the live quotes; fall back to the fixed approximation.
-  const usdToEur = livePrice.price && livePrice.price.usd > 0
-    ? livePrice.price.eur / livePrice.price.usd
-    : USD_TO_EUR;
-  const eurToUsd = 1 / usdToEur;
-  const usingLiveFx = livePrice.price !== null;
+  const { usdToEur, eurToUsd, usingLiveFx } = livePrice;
 
   const steps = useMemo(() => {
     const safeBaseBtc = Math.max(0, baseBtc || 0);
@@ -228,8 +227,9 @@ export function PositionTracker() {
 
         <div className="grid md:grid-cols-3 gap-4">
           <div className="space-y-2">
-            <label className="text-xs uppercase tracking-widest opacity-80">BTC en cartera</label>
+            <label htmlFor={`${fieldId}-btc`} className="text-xs uppercase tracking-widest opacity-80 block">BTC en cartera</label>
             <input
+              id={`${fieldId}-btc`}
               type="number"
               min={0}
               step="0.00000001"
@@ -240,8 +240,9 @@ export function PositionTracker() {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-xs uppercase tracking-widest opacity-80">Precio medio actual (€/BTC)</label>
+            <label htmlFor={`${fieldId}-avg`} className="text-xs uppercase tracking-widest opacity-80 block">Precio medio actual (€/BTC)</label>
             <input
+              id={`${fieldId}-avg`}
               type="number"
               min={0}
               step={1000}
@@ -252,11 +253,12 @@ export function PositionTracker() {
             />
           </div>
           <div className="space-y-2">
-            <label className="text-xs uppercase tracking-widest opacity-80 flex items-center gap-1.5">
+            <label htmlFor={`${fieldId}-today`} className="text-xs uppercase tracking-widest opacity-80 flex items-center gap-1.5">
               Precio BTC hoy (€)
               <InfoTip text="Opcional. Si lo rellenas, calculamos tu plusvalía/minusvalía latente sobre la posición resultante (actual + compras simuladas)." />
             </label>
             <input
+              id={`${fieldId}-today`}
               type="number"
               min={0}
               step={1000}
@@ -290,10 +292,11 @@ export function PositionTracker() {
               <span className="text-[10px] font-mono opacity-40 w-16">Compra {i + 1}</span>
 
               <div className="space-y-1">
-                <label className="text-[10px] uppercase tracking-widest opacity-60">Importe</label>
+                <label htmlFor={`${fieldId}-amount-${p.id}`} className="text-[10px] uppercase tracking-widest opacity-60 block">Importe</label>
                 <div className="flex bg-[#0A0A0A] border border-white/20 p-1.5">
                   <span className="text-[#F7931A] font-mono mr-1.5 text-sm">{p.currency === 'EUR' ? '€' : '$'}</span>
                   <input
+                    id={`${fieldId}-amount-${p.id}`}
                     type="number"
                     min={0}
                     step={500}
@@ -305,10 +308,11 @@ export function PositionTracker() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] uppercase tracking-widest opacity-60">Precio de compra</label>
+                <label htmlFor={`${fieldId}-price-${p.id}`} className="text-[10px] uppercase tracking-widest opacity-60 block">Precio de compra</label>
                 <div className="flex bg-[#0A0A0A] border border-white/20 p-1.5">
                   <span className="text-[#F7931A] font-mono mr-1.5 text-sm">{p.currency === 'EUR' ? '€' : '$'}</span>
                   <input
+                    id={`${fieldId}-price-${p.id}`}
                     type="number"
                     min={0}
                     step={1000}

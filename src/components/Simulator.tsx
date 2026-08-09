@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import * as d3 from 'd3';
 import { Info } from 'lucide-react';
+import { useLiveBtcPrice } from '../hooks/useLiveBtcPrice';
 
 interface YearPoint {
   year: number;
@@ -8,9 +9,8 @@ interface YearPoint {
   btcPrice: number;
 }
 
-const BASE_BTC_PRICE_USD = 100000;
-// Approximate, fixed rate used only to illustrate the currency toggle — not a live quote.
-export const USD_TO_EUR = 0.92;
+/** Only used until the live quote arrives, so the chart has something to draw. */
+const FALLBACK_BTC_PRICE_USD = 65000;
 const YEARS = 10;
 
 function projectScenario(investment: number, m2Growth: number, adoptionRate: number, basePrice: number): YearPoint[] {
@@ -72,7 +72,14 @@ export function Simulator() {
     data: YearPoint[];
   } | null>(null);
 
-  const basePrice = currency === 'USD' ? BASE_BTC_PRICE_USD : BASE_BTC_PRICE_USD * USD_TO_EUR;
+  const live = useLiveBtcPrice();
+
+  // Project from the real spot price when available, so this section agrees with
+  // the live readout in the DCA calculator below it.
+  const basePrice = live.price
+    ? (currency === 'USD' ? live.price.usd : live.price.eur)
+    : (currency === 'USD' ? FALLBACK_BTC_PRICE_USD : FALLBACK_BTC_PRICE_USD * live.usdToEur);
+
   const projection = useMemo(
     () => projectScenario(investment, m2Growth, adoptionRate, basePrice),
     [investment, m2Growth, adoptionRate, basePrice]
@@ -88,7 +95,7 @@ export function Simulator() {
   // Switching currency should convert the actual figures, not just relabel them.
   const handleCurrencyChange = (next: 'USD' | 'EUR') => {
     if (next === currency) return;
-    const rate = next === 'EUR' ? USD_TO_EUR : 1 / USD_TO_EUR;
+    const rate = next === 'EUR' ? live.usdToEur : live.eurToUsd;
     setInvestment(v => Math.round(v * rate));
     setCurrency(next);
   };
@@ -255,6 +262,7 @@ export function Simulator() {
             <p className="text-xs opacity-60 font-mono uppercase mb-2">Proyección a 10 años</p>
             <p className="text-[11px] font-mono normal-case opacity-50 leading-relaxed">
               Este modelo combina dos supuestos simples para estimar cómo podría evolucionar el precio de Bitcoin. No es una predicción: es una calculadora de "qué pasaría si".
+              {' '}Parte del precio {live.usingLiveFx ? 'actual' : 'de referencia'} de <span className="text-[#F7931A]">{fmt(basePrice)}</span> por BTC.
             </p>
           </div>
 
@@ -343,7 +351,9 @@ export function Simulator() {
                   EUR
                 </button>
               </div>
-              <p className="text-[10px] font-mono opacity-40">Conversión aproximada (1 $ ≈ {USD_TO_EUR.toFixed(2)} €), solo ilustrativa.</p>
+              <p className="text-[10px] font-mono opacity-40">
+                1 $ ≈ {live.usdToEur.toFixed(4)} € {live.usingLiveFx ? '(tipo en vivo)' : '(aproximación)'}
+              </p>
 
               <div className="space-y-2">
                 <label className="text-xs uppercase tracking-widest opacity-80">Inversión Inicial</label>

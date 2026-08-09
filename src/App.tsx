@@ -4,6 +4,7 @@ import { Lock, Landmark, Globe, TrendingUp, Bitcoin, ChevronDown, BarChart3, Shi
 import { Timeline } from './components/Timeline';
 import { Simulator } from './components/Simulator';
 import { PositionTracker } from './components/PositionTracker';
+import { LiveBtcPriceProvider } from './hooks/useLiveBtcPrice';
 
 export default function App() {
   const containerVariants = {
@@ -194,8 +195,10 @@ export default function App() {
           className="border-t border-white/10 pt-12"
         >
           <Timeline />
-          <Simulator />
-          <PositionTracker />
+          <LiveBtcPriceProvider>
+            <Simulator />
+            <PositionTracker />
+          </LiveBtcPriceProvider>
         </motion.section>
       </main>
 

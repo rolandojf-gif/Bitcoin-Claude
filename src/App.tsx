@@ -4,7 +4,22 @@ import { Lock, Landmark, Globe, TrendingUp, Bitcoin, ChevronDown, BarChart3, Shi
 import { Timeline } from './components/Timeline';
 import { Simulator } from './components/Simulator';
 import { PositionTracker } from './components/PositionTracker';
-import { LiveBtcPriceProvider } from './hooks/useLiveBtcPrice';
+import { LiveBtcPriceProvider, useLiveBtcPrice } from './hooks/useLiveBtcPrice';
+import { PositionProvider } from './hooks/usePosition';
+
+/**
+ * Bridges the two providers: the position's USD purchases are costed at the
+ * live FX rate, so it has to sit inside the price provider to read it.
+ */
+function Tools() {
+  const { usdToEur } = useLiveBtcPrice();
+  return (
+    <PositionProvider usdToEur={usdToEur}>
+      <Simulator />
+      <PositionTracker />
+    </PositionProvider>
+  );
+}
 
 export default function App() {
   const containerVariants = {
@@ -196,8 +211,7 @@ export default function App() {
         >
           <Timeline />
           <LiveBtcPriceProvider>
-            <Simulator />
-            <PositionTracker />
+            <Tools />
           </LiveBtcPriceProvider>
         </motion.section>
       </main>

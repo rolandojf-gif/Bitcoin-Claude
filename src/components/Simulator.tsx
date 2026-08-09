@@ -2,30 +2,53 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import * as d3 from 'd3';
 import { Info } from 'lucide-react';
 import { useLiveBtcPrice } from '../hooks/useLiveBtcPrice';
+import { usePosition } from '../hooks/usePosition';
 
 interface YearPoint {
   year: number;
-  value: number;
   btcPrice: number;
+  /** Primary series: the generic investment, or the position including simulated buys. */
+  value: number;
+  /** Secondary series: the position as it stands today, without the simulated buys. */
+  baseValue: number | null;
 }
 
 /** Only used until the live quote arrives, so the chart has something to draw. */
 const FALLBACK_BTC_PRICE_USD = 65000;
 const YEARS = 10;
 
-function projectScenario(investment: number, m2Growth: number, adoptionRate: number, basePrice: number): YearPoint[] {
+interface ProjectionInput {
+  /** BTC held in the primary series. */
+  btc: number;
+  /** BTC held in the secondary series, or null to draw a single line. */
+  baseBtc: number | null;
+  m2Growth: number;
+  adoptionRate: number;
+  basePrice: number;
+}
+
+function projectScenario({ btc, baseBtc, m2Growth, adoptionRate, basePrice }: ProjectionInput): YearPoint[] {
   const currentYear = new Date().getFullYear();
-  const safeInvestment = Number.isFinite(investment) && investment > 0 ? investment : 0;
-  const initialTokens = safeInvestment / basePrice;
   const data: YearPoint[] = [];
 
   for (let i = 0; i <= YEARS; i++) {
     const priceMultiplier = Math.pow(1 + m2Growth / 100, i) * Math.pow(1 + adoptionRate / 100, i);
     const btcPrice = basePrice * priceMultiplier;
-    data.push({ year: currentYear + i, value: initialTokens * btcPrice, btcPrice });
+    data.push({
+      year: currentYear + i,
+      btcPrice,
+      value: btc * btcPrice,
+      baseValue: baseBtc !== null ? baseBtc * btcPrice : null,
+    });
   }
 
   return data;
+}
+
+/** First year the projected value covers what was paid; null if it never does within the horizon. */
+function findBreakEven(data: YearPoint[], costBasis: number): number | null {
+  if (costBasis <= 0) return null;
+  return data.find(d => d.value >= costBasis)?.year ?? null;
 }
 
 const PRESETS = [
@@ -57,11 +80,14 @@ export function InfoTip({ text }: { text: string }) {
   );
 }
 
+type Mode = 'generic' | 'position';
+
 export function Simulator() {
   const [m2Growth, setM2Growth] = useState(8);
   const [adoptionRate, setAdoptionRate] = useState(15);
   const [investment, setInvestment] = useState(10000);
-  const [currency, setCurrency] = useState<'USD' | 'EUR'>('USD');
+  const [currency, setCurrency] = useState<'USD' | 'EUR'>('EUR');
+  const [mode, setMode] = useState<Mode>('position');
   const [resizeTick, setResizeTick] = useState(0);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
@@ -73,18 +99,51 @@ export function Simulator() {
   } | null>(null);
 
   const live = useLiveBtcPrice();
+  const position = usePosition();
 
   // Project from the real spot price when available, so this section agrees with
-  // the live readout in the DCA calculator below it.
+  // the live readout in the DCA calculator.
   const basePrice = live.price
     ? (currency === 'USD' ? live.price.usd : live.price.eur)
     : (currency === 'USD' ? FALLBACK_BTC_PRICE_USD : FALLBACK_BTC_PRICE_USD * live.usdToEur);
 
-  const projection = useMemo(
-    () => projectScenario(investment, m2Growth, adoptionRate, basePrice),
-    [investment, m2Growth, adoptionRate, basePrice]
-  );
+  // Position figures are held in EUR; convert when the chart is showing dollars.
+  const toDisplay = (eurAmount: number) => (currency === 'EUR' ? eurAmount : eurAmount * live.eurToUsd);
+
+  const usingPosition = mode === 'position' && position.hasPosition;
+  const hasSimulatedBuys = position.purchases.length > 0;
+
+  const projection = useMemo(() => {
+    if (usingPosition) {
+      return projectScenario({
+        btc: position.final.btc,
+        baseBtc: hasSimulatedBuys ? position.base.btc : null,
+        m2Growth,
+        adoptionRate,
+        basePrice,
+      });
+    }
+    return projectScenario({
+      btc: investment > 0 ? investment / basePrice : 0,
+      baseBtc: null,
+      m2Growth,
+      adoptionRate,
+      basePrice,
+    });
+  }, [
+    usingPosition, hasSimulatedBuys, position.final.btc, position.base.btc,
+    investment, m2Growth, adoptionRate, basePrice,
+  ]);
+
   const finalPoint = projection[projection.length - 1];
+
+  // What was actually paid, in the currency the chart is showing.
+  const costBasis = usingPosition ? toDisplay(position.final.cost) : investment;
+  const baseCostBasis = usingPosition ? toDisplay(position.base.cost) : 0;
+  const breakEvenYear = findBreakEven(projection, costBasis);
+  const baseBreakEvenYear = usingPosition && hasSimulatedBuys
+    ? projection.find(d => (d.baseValue ?? 0) >= baseCostBasis)?.year ?? null
+    : null;
 
   const activePreset = PRESETS.find(p => p.m2 === m2Growth && p.adoption === adoptionRate)?.id ?? null;
   const combinedGrowthPct = ((1 + m2Growth / 100) * (1 + adoptionRate / 100) - 1) * 100;
@@ -130,8 +189,13 @@ export function Simulator() {
       .domain(d3.extent<YearPoint, number>(data, d => d.year) as [number, number])
       .range([margin.left, width - margin.right]);
 
+    // The domain has to clear both series and the cost-basis marker, or they'd be clipped.
+    const yMax = Math.max(
+      d3.max<YearPoint, number>(data, d => d.value) || 0,
+      costBasis,
+    );
     const y = d3.scaleLinear()
-      .domain([0, d3.max<YearPoint, number>(data, d => d.value) || 0]).nice()
+      .domain([0, yMax]).nice()
       .range([height - margin.bottom, margin.top]);
 
     const line = d3.line<YearPoint>()
@@ -179,6 +243,42 @@ export function Simulator() {
       )
       .call(g => g.select('.domain').remove())
       .call(g => g.selectAll('.tick line').attr('stroke', 'rgba(255,255,255,0.05)'));
+
+    // Cost-basis marker: the level at which the position stops being under water.
+    if (costBasis > 0) {
+      svg.append('line')
+        .attr('x1', margin.left)
+        .attr('x2', width - margin.right)
+        .attr('y1', y(costBasis))
+        .attr('y2', y(costBasis))
+        .attr('stroke', 'rgba(255,255,255,0.45)')
+        .attr('stroke-dasharray', '5,4')
+        .attr('stroke-width', 1);
+
+      svg.append('text')
+        .attr('x', width - margin.right)
+        .attr('y', y(costBasis) - 6)
+        .attr('text-anchor', 'end')
+        .attr('fill', 'rgba(255,255,255,0.6)')
+        .attr('font-size', '9px')
+        .text(`lo invertido · ${fmt(costBasis)}`);
+    }
+
+    // Secondary series: where the position would sit without the simulated buys.
+    if (data.some(d => d.baseValue !== null)) {
+      const baseLine = d3.line<YearPoint>()
+        .x(d => x(d.year))
+        .y(d => y(d.baseValue ?? 0))
+        .curve(d3.curveMonotoneX);
+
+      svg.append('path')
+        .datum(data)
+        .attr('fill', 'none')
+        .attr('stroke', 'rgba(255,255,255,0.45)')
+        .attr('stroke-width', 1.5)
+        .attr('stroke-dasharray', '4,3')
+        .attr('d', baseLine);
+    }
 
     svg.append('path')
       .datum(data)
@@ -241,7 +341,7 @@ export function Simulator() {
       });
 
     scalesRef.current = { x, y, data };
-  }, [projection, currency, resizeTick]);
+  }, [projection, currency, resizeTick, costBasis]);
 
   const hoverPoint = hoverIdx !== null ? projection[hoverIdx] : null;
   const hoverPos = hoverPoint && scalesRef.current
@@ -260,9 +360,44 @@ export function Simulator() {
               Simulador de Escenarios
             </h3>
             <p className="text-xs opacity-60 font-mono uppercase mb-2">Proyección a 10 años</p>
-            <p className="text-[11px] font-mono normal-case opacity-50 leading-relaxed">
+            <p className="text-[11px] font-mono normal-case text-white/60 leading-relaxed">
               Este modelo combina dos supuestos simples para estimar cómo podría evolucionar el precio de Bitcoin. No es una predicción: es una calculadora de "qué pasaría si".
               {' '}Parte del precio {live.usingLiveFx ? 'actual' : 'de referencia'} de <span className="text-[#F7931A]">{fmt(basePrice)}</span> por BTC.
+            </p>
+          </div>
+
+          {/* Ties this projection to the position entered in the DCA calculator below. */}
+          <div className="space-y-2">
+            <label className="text-xs uppercase tracking-widest opacity-80">Qué proyectar</label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setMode('position')}
+                disabled={!position.hasPosition}
+                className={`flex-1 text-[10px] uppercase tracking-widest py-2 border transition-colors ${
+                  usingPosition
+                    ? 'border-[#F7931A] text-[#F7931A] bg-[#F7931A]/10'
+                    : 'border-white/20 text-white/60 hover:border-white/40'
+                } ${position.hasPosition ? 'cursor-pointer' : 'opacity-30 cursor-not-allowed'}`}
+              >
+                Mi posición
+              </button>
+              <button
+                onClick={() => setMode('generic')}
+                className={`flex-1 text-[10px] uppercase tracking-widest py-2 border transition-colors cursor-pointer ${
+                  !usingPosition
+                    ? 'border-[#F7931A] text-[#F7931A] bg-[#F7931A]/10'
+                    : 'border-white/20 text-white/60 hover:border-white/40'
+                }`}
+              >
+                Importe suelto
+              </button>
+            </div>
+            <p className="text-[10px] font-mono normal-case text-white/50 leading-relaxed">
+              {position.hasPosition
+                ? usingPosition
+                  ? `Proyectando ${position.final.btc.toLocaleString(undefined, { maximumFractionDigits: 8 })} BTC${hasSimulatedBuys ? ' (posición actual + compras simuladas)' : ''}.`
+                  : 'Proyectando un importe hipotético, sin relación con tu posición.'
+                : 'Rellena tu posición en la calculadora de abajo para proyectarla aquí.'}
             </p>
           </div>
 
@@ -355,20 +490,30 @@ export function Simulator() {
                 1 $ ≈ {live.usdToEur.toFixed(4)} € {live.usingLiveFx ? '(tipo en vivo)' : '(aproximación)'}
               </p>
 
-              <div className="space-y-2">
-                <label className="text-xs uppercase tracking-widest opacity-80">Inversión Inicial</label>
-                <div className="flex bg-[#0A0A0A] border border-white/20 p-2 focus-within:border-[#F7931A] transition-colors">
-                  <span className="text-[#F7931A] font-mono mr-2">{symbol}</span>
-                  <input
-                    type="number"
-                    min={0}
-                    step={1000}
-                    value={investment}
-                    onChange={e => setInvestment(Math.max(0, Number(e.target.value) || 0))}
-                    className="bg-transparent outline-none font-mono w-full text-white"
-                  />
+              {usingPosition ? (
+                <div className="space-y-2">
+                  <p className="text-xs uppercase tracking-widest opacity-80">Lo invertido</p>
+                  <p className="font-mono text-white/80">{fmt(costBasis)}</p>
+                  <p className="text-[10px] font-mono normal-case text-white/50 leading-relaxed">
+                    Coste total de tu posición{hasSimulatedBuys ? ' incluyendo las compras simuladas' : ''}. Se toma de la calculadora de abajo.
+                  </p>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-2">
+                  <label className="text-xs uppercase tracking-widest opacity-80">Inversión Inicial</label>
+                  <div className="flex bg-[#0A0A0A] border border-white/20 p-2 focus-within:border-[#F7931A] transition-colors">
+                    <span className="text-[#F7931A] font-mono mr-2">{symbol}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1000}
+                      value={investment}
+                      onChange={e => setInvestment(Math.max(0, Number(e.target.value) || 0))}
+                      className="bg-transparent outline-none font-mono w-full text-white"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -378,12 +523,49 @@ export function Simulator() {
             <div>
               <p className="text-xs uppercase tracking-widest opacity-60">Valor Proyectado ({finalPoint.year})</p>
               <p className="text-3xl font-mono text-[#F5F5F5] mt-1">{fmt(finalPoint.value)}</p>
+              {usingPosition && costBasis > 0 && (
+                <p className="text-[11px] font-mono text-white/60 mt-1">
+                  {finalPoint.value >= costBasis ? '×' : ''}
+                  {finalPoint.value >= costBasis
+                    ? (finalPoint.value / costBasis).toFixed(1) + ' sobre lo invertido'
+                    : `aún por debajo de lo invertido (${fmt(costBasis)})`}
+                </p>
+              )}
             </div>
             <div className="text-left md:text-right">
               <p className="text-xs uppercase tracking-widest opacity-60">Precio BTC ({finalPoint.year})</p>
               <p className="text-xl font-mono text-[#F7931A] mt-1">{fmt(finalPoint.btcPrice)}</p>
             </div>
           </div>
+
+          {/* The question that actually matters when averaging down: when does this stop being a loss? */}
+          {usingPosition && costBasis > 0 && (
+            <div className="border border-white/10 bg-[#0A0A0A]/60 p-3 mb-4 space-y-1">
+              <p className="text-[10px] uppercase tracking-widest text-white/60">Recuperas lo invertido</p>
+              <p className="font-mono text-[#F7931A]">
+                {breakEvenYear
+                  ? `en ${breakEvenYear}${breakEvenYear === projection[0].year ? ' (ya estás en verde)' : ''}`
+                  : `no dentro de estos ${YEARS} años, con estos supuestos`}
+              </p>
+              {hasSimulatedBuys && (
+                <p className="text-[11px] font-mono normal-case text-white/60 leading-relaxed">
+                  Sin las compras simuladas:{' '}
+                  {baseBreakEvenYear
+                    ? `${baseBreakEvenYear}`
+                    : `fuera del horizonte de ${YEARS} años`}
+                  {baseBreakEvenYear && breakEvenYear && baseBreakEvenYear !== breakEvenYear && (
+                    <span className="text-[#F7931A]">
+                      {' '}· promediar lo adelanta {baseBreakEvenYear - breakEvenYear}{' '}
+                      {baseBreakEvenYear - breakEvenYear === 1 ? 'año' : 'años'}
+                    </span>
+                  )}
+                  {!baseBreakEvenYear && breakEvenYear && (
+                    <span className="text-[#F7931A]"> · promediar lo mete dentro del horizonte</span>
+                  )}
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="flex-1 min-h-[300px] w-full relative">
             <div ref={chartRef} className="w-full h-full"></div>
@@ -393,13 +575,29 @@ export function Simulator() {
                 style={{ left: hoverPos.left, top: hoverPos.top }}
               >
                 <div className="text-white/60">{hoverPoint.year}</div>
-                <div className="text-[#F5F5F5]">Cartera: {fmt(hoverPoint.value)}</div>
+                <div className="text-[#F5F5F5]">
+                  {usingPosition ? 'Posición' : 'Cartera'}: {fmt(hoverPoint.value)}
+                </div>
+                {hoverPoint.baseValue !== null && (
+                  <div className="text-white/50">Sin promediar: {fmt(hoverPoint.baseValue)}</div>
+                )}
                 <div className="text-[#F7931A]">BTC: {fmt(hoverPoint.btcPrice)}</div>
               </div>
             )}
           </div>
 
-          <p className="text-[10px] font-mono normal-case opacity-40 mt-4 leading-relaxed">
+          {usingPosition && hasSimulatedBuys && (
+            <div className="flex flex-wrap gap-x-5 gap-y-1 mt-3 text-[10px] font-mono text-white/60">
+              <span className="flex items-center gap-1.5">
+                <span className="w-4 h-0.5 bg-[#F7931A]"></span> con compras simuladas
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-4 border-t border-dashed border-white/45"></span> solo posición actual
+              </span>
+            </div>
+          )}
+
+          <p className="text-[10px] font-mono normal-case text-white/50 mt-4 leading-relaxed">
             Modelo educativo con fines ilustrativos. Asume crecimiento compuesto constante, lo cual no ocurre en mercados reales. No es asesoramiento financiero ni garantía de rendimiento futuro.
           </p>
         </div>

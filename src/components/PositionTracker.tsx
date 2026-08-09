@@ -1,79 +1,8 @@
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useId } from 'react';
 import { Lock, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { InfoTip } from './Simulator';
 import { useLiveBtcPrice } from '../hooks/useLiveBtcPrice';
-
-type Currency = 'EUR' | 'USD';
-
-interface Purchase {
-  id: string;
-  amount: number;
-  currency: Currency;
-  price: number;
-}
-
-interface StoredState {
-  baseBtc: number;
-  baseAvgPrice: number;
-  currentBtcPrice: number;
-  purchases: Purchase[];
-}
-
-const STORAGE_KEY = 'btc-claude-position-v1';
-
-const DEFAULT_STATE: StoredState = {
-  baseBtc: 0,
-  baseAvgPrice: 0,
-  currentBtcPrice: 0,
-  purchases: [],
-};
-
-function toNumber(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
-}
-
-/**
- * Stored data is user-editable (and can survive a schema change), so every field
- * is validated rather than trusted — a malformed payload used to crash the page.
- */
-function loadState(): StoredState {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return DEFAULT_STATE;
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== 'object' || parsed === null) return DEFAULT_STATE;
-
-    const obj = parsed as Record<string, unknown>;
-    const rawPurchases = Array.isArray(obj.purchases) ? obj.purchases : [];
-
-    return {
-      baseBtc: toNumber(obj.baseBtc),
-      baseAvgPrice: toNumber(obj.baseAvgPrice),
-      currentBtcPrice: toNumber(obj.currentBtcPrice),
-      purchases: rawPurchases
-        .filter((p): p is Record<string, unknown> => typeof p === 'object' && p !== null)
-        .map(p => ({
-          id: typeof p.id === 'string' && p.id ? p.id : makeId(),
-          amount: toNumber(p.amount),
-          currency: p.currency === 'USD' ? 'USD' : 'EUR',
-          price: toNumber(p.price),
-        })),
-    };
-  } catch {
-    return DEFAULT_STATE;
-  }
-}
-
-/** crypto.randomUUID needs a secure context; fall back so the button never throws. */
-function makeId(): string {
-  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
-    ? crypto.randomUUID()
-    : `p-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-function newPurchase(): Purchase {
-  return { id: makeId(), amount: 1000, currency: 'EUR', price: 90000 };
-}
+import { usePosition } from '../hooks/usePosition';
 
 function fmtEur(n: number) {
   return `€${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
@@ -88,82 +17,23 @@ function fmtBtc(n: number) {
 }
 
 export function PositionTracker() {
-  const [baseBtc, setBaseBtc] = useState(0);
-  const [baseAvgPrice, setBaseAvgPrice] = useState(0);
-  const [currentBtcPrice, setCurrentBtcPrice] = useState(0);
-  const [purchases, setPurchases] = useState<Purchase[]>([]);
-  const [loaded, setLoaded] = useState(false);
   const livePrice = useLiveBtcPrice();
   const fieldId = useId();
-
-  // Load once on mount, from this browser only — never from the network or the repo.
-  useEffect(() => {
-    const state = loadState();
-    setBaseBtc(state.baseBtc);
-    setBaseAvgPrice(state.baseAvgPrice);
-    setCurrentBtcPrice(state.currentBtcPrice);
-    setPurchases(state.purchases);
-    setLoaded(true);
-  }, []);
-
-  useEffect(() => {
-    if (!loaded) return;
-    const state: StoredState = { baseBtc, baseAvgPrice, currentBtcPrice, purchases };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [loaded, baseBtc, baseAvgPrice, currentBtcPrice, purchases]);
+  const {
+    baseBtc, baseAvgPrice, currentBtcPrice, purchases,
+    setBaseBtc, setBaseAvgPrice, setCurrentBtcPrice,
+    addPurchase, updatePurchase, removePurchase,
+    steps, base, final,
+  } = usePosition();
 
   const { usdToEur, eurToUsd, usingLiveFx } = livePrice;
 
-  const steps = useMemo(() => {
-    const safeBaseBtc = Math.max(0, baseBtc || 0);
-    const safeBaseAvgPrice = Math.max(0, baseAvgPrice || 0);
-
-    let btc = safeBaseBtc;
-    let cost = safeBaseBtc * safeBaseAvgPrice;
-
-    const rows = [{
-      label: 'Posición actual',
-      btcAdded: null as number | null,
-      btc,
-      cost,
-      avgPrice: btc > 0 ? cost / btc : 0,
-    }];
-
-    purchases.forEach((p, i) => {
-      const amount = Math.max(0, p.amount || 0);
-      const price = Math.max(0, p.price || 0);
-      const btcAdded = price > 0 ? amount / price : 0;
-      const costAdded = p.currency === 'EUR' ? amount : amount * usdToEur;
-      btc += btcAdded;
-      cost += costAdded;
-      rows.push({
-        label: `Compra ${i + 1}`,
-        btcAdded,
-        btc,
-        cost,
-        avgPrice: btc > 0 ? cost / btc : 0,
-      });
-    });
-
-    return rows;
-  }, [baseBtc, baseAvgPrice, purchases, usdToEur]);
-
-  const final = steps[steps.length - 1];
-  const base = steps[0];
   const avgPriceDelta = final.avgPrice - base.avgPrice;
 
   const safeCurrentPrice = Math.max(0, currentBtcPrice || 0);
   const unrealizedValue = final.btc * safeCurrentPrice;
   const unrealizedPL = unrealizedValue - final.cost;
   const unrealizedPLPct = final.cost > 0 ? (unrealizedPL / final.cost) * 100 : 0;
-
-  const updatePurchase = (id: string, patch: Partial<Purchase>) => {
-    setPurchases(list => list.map(p => (p.id === id ? { ...p, ...patch } : p)));
-  };
-
-  const removePurchase = (id: string) => {
-    setPurchases(list => list.filter(p => p.id !== id));
-  };
 
   return (
     <div className="border border-white/10 p-6 md:p-8 bg-white/5 mt-12 relative overflow-hidden">
@@ -274,7 +144,7 @@ export function PositionTracker() {
           <div className="flex items-center justify-between">
             <label className="text-xs uppercase tracking-widest opacity-80">Nuevas compras simuladas</label>
             <button
-              onClick={() => setPurchases(list => [...list, newPurchase()])}
+              onClick={addPurchase}
               className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest py-2 px-3 border border-[#F7931A]/40 text-[#F7931A] hover:bg-[#F7931A]/10 transition-colors cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" /> Añadir compra

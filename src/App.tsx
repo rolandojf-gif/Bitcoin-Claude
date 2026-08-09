@@ -3,6 +3,7 @@ import { Lock, Landmark, Globe, TrendingUp, Bitcoin, ChevronDown, BarChart3, Shi
 
 import { Timeline } from './components/Timeline';
 import { Simulator } from './components/Simulator';
+import { PositionTracker } from './components/PositionTracker';
 
 export default function App() {
   const containerVariants = {
@@ -194,6 +195,7 @@ export default function App() {
         >
           <Timeline />
           <Simulator />
+          <PositionTracker />
         </motion.section>
       </main>
 

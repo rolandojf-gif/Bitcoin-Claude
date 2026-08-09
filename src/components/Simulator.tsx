@@ -10,7 +10,7 @@ interface YearPoint {
 
 const BASE_BTC_PRICE_USD = 100000;
 // Approximate, fixed rate used only to illustrate the currency toggle — not a live quote.
-const USD_TO_EUR = 0.92;
+export const USD_TO_EUR = 0.92;
 const YEARS = 10;
 
 function projectScenario(investment: number, m2Growth: number, adoptionRate: number, basePrice: number): YearPoint[] {
@@ -34,7 +34,7 @@ const PRESETS = [
   { id: 'bull', label: 'Optimista', m2: 12, adoption: 30 },
 ] as const;
 
-function InfoTip({ text }: { text: string }) {
+export function InfoTip({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
 
   return (

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Lock, Plus, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Lock, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { InfoTip, USD_TO_EUR } from './Simulator';
 
 type Currency = 'EUR' | 'USD';
@@ -50,12 +50,43 @@ function fmtBtc(n: number) {
   return `${n.toLocaleString(undefined, { maximumFractionDigits: 8 })} BTC`;
 }
 
+interface LivePrice {
+  usd: number;
+  eur: number;
+}
+
+function useLiveBtcPrice() {
+  const [price, setPrice] = useState<LivePrice | null>(null);
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+
+  const fetchPrice = useCallback(() => {
+    setStatus('loading');
+    fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd,eur')
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(data => {
+        setPrice({ usd: data.bitcoin.usd, eur: data.bitcoin.eur });
+        setUpdatedAt(new Date());
+        setStatus('ready');
+      })
+      .catch(() => setStatus('error'));
+  }, []);
+
+  useEffect(() => { fetchPrice(); }, [fetchPrice]);
+
+  return { price, status, updatedAt, refresh: fetchPrice };
+}
+
 export function PositionTracker() {
   const [baseBtc, setBaseBtc] = useState(0);
   const [baseAvgPrice, setBaseAvgPrice] = useState(0);
   const [currentBtcPrice, setCurrentBtcPrice] = useState(0);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const livePrice = useLiveBtcPrice();
 
   // Load once on mount, from this browser only — never from the network or the repo.
   useEffect(() => {
@@ -140,6 +171,48 @@ export function PositionTracker() {
             <Lock className="w-3 h-3 shrink-0 mt-0.5 text-[#F7931A]" />
             Privado: estos datos se guardan solo en este navegador (localStorage). Nunca se suben al repositorio ni se envían a ningún servidor.
           </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border border-white/10 bg-[#0A0A0A]/60 p-3">
+          <span className="text-[10px] uppercase tracking-widest opacity-60 flex items-center gap-1.5 shrink-0">
+            <span className={`w-1.5 h-1.5 rounded-full ${livePrice.status === 'loading' ? 'bg-white/30 animate-pulse' : livePrice.status === 'error' ? 'bg-red-400' : 'bg-emerald-400'}`}></span>
+            BTC en vivo
+          </span>
+
+          {livePrice.status === 'error' && (
+            <span className="text-[11px] font-mono normal-case opacity-50">No se pudo obtener el precio. Introdúcelo a mano abajo.</span>
+          )}
+
+          {livePrice.price && (
+            <>
+              <span className="font-mono text-sm text-[#F5F5F5]">
+                €{livePrice.price.eur.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </span>
+              <span className="font-mono text-sm text-white/50">
+                ${livePrice.price.usd.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </span>
+              {livePrice.updatedAt && (
+                <span className="text-[10px] font-mono opacity-40">
+                  actualizado {livePrice.updatedAt.toLocaleTimeString()}
+                </span>
+              )}
+              <button
+                onClick={() => setCurrentBtcPrice(Math.round(livePrice.price!.eur))}
+                className="text-[10px] uppercase tracking-widest py-1.5 px-2.5 border border-[#F7931A]/40 text-[#F7931A] hover:bg-[#F7931A]/10 transition-colors cursor-pointer"
+              >
+                Usar como precio de hoy
+              </button>
+            </>
+          )}
+
+          <button
+            onClick={livePrice.refresh}
+            aria-label="Actualizar precio"
+            disabled={livePrice.status === 'loading'}
+            className="ml-auto text-white/40 hover:text-[#F7931A] transition-colors cursor-pointer disabled:opacity-30"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${livePrice.status === 'loading' ? 'animate-spin' : ''}`} />
+          </button>
         </div>
 
         <div className="grid md:grid-cols-3 gap-4">

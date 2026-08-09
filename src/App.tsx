@@ -51,7 +51,7 @@ export default function App() {
             <span className="text-transparent" style={{ WebkitTextStroke: '1px #F5F5F5' }}>Octubre 2025</span>
           </h1>
           <p className="text-xl md:text-2xl opacity-90 leading-relaxed max-w-3xl mx-auto mb-16 font-serif italic">
-            Creer que Bitcoin alcanzó su techo definitivo ignora los fundamentos matemáticos de su escasez y la teoría de juegos de la adopción institucional global.
+            Dar por hecho que Bitcoin tocó su techo definitivo exige ignorar dos cosas que no han cambiado: una oferta que no responde al precio, y una infraestructura institucional que se sigue construyendo.
           </p>
 
           <motion.div
@@ -81,7 +81,7 @@ export default function App() {
             Después de los máximos históricos alcanzados en octubre de 2025, el mercado ha experimentado volatilidad y dudas. Muchos analistas tradicionales sugieren que "la burbuja explotó" o que el ciclo de Bitcoin se ha agotado.
           </motion.p>
           <motion.p variants={itemVariants} className="text-lg leading-relaxed opacity-90">
-            Esta premisa es fundamentalmente errónea. Confunde una consolidación macroeconómica natural con un techo estructural. La realidad es que los catalizadores de oferta y demanda que impulsaron a Bitcoin a esos niveles no han desaparecido; de hecho, <strong className="font-bold text-white">se están acelerando</strong>. A continuación, explicamos por qué la tendencia alcista sostenida está matemáticamente garantizada.
+            Esa lectura confunde una consolidación con un techo estructural. Los catalizadores de oferta y demanda que llevaron a Bitcoin hasta ahí no han desaparecido: la emisión sigue cayendo por protocolo y la infraestructura institucional que se construyó en 2024 y 2025 no se desmonta porque el precio corrija. A continuación, los tres pilares del argumento — y una herramienta para que <strong className="font-bold text-white">pongas tus propios números</strong> en lugar de aceptar los míos.
           </motion.p>
         </motion.section>
 
@@ -114,7 +114,7 @@ export default function App() {
                 <BarChart3 className="w-4 h-4" /> El Shock de Oferta Silencioso
               </h4>
               <p className="text-base font-serif italic m-0 opacity-90">
-                Las métricas on-chain post-2025 demuestran que las reservas de los exchanges continúan cayendo. Las monedas se mueven hacia el almacenamiento en frío (cold storage) por parte de <em>Long-Term Holders</em> (inversores a largo plazo). Con menos liquidez disponible para la venta, cualquier pico de demanda institucional provoca un impacto al alza desproporcionado en el precio.
+                Las métricas on-chain apuntan a que las reservas en exchanges siguen cayendo: las monedas se mueven hacia almacenamiento en frío en manos de <em>Long-Term Holders</em>. Si esa tendencia se mantiene, queda menos oferta disponible para vender, y cada nuevo tramo de demanda institucional choca contra un libro de órdenes más fino. El matiz importa: esto amplifica los movimientos, no garantiza su dirección.
               </p>
             </div>
           </motion.div>
@@ -133,13 +133,13 @@ export default function App() {
               La narrativa de 2024 y 2025 estuvo dominada por los ETFs de Wall Street (BlackRock, Fidelity). Sin embargo, los ETFs fueron solo los "raíles" de infraestructura. La verdadera fase en la que entramos post-2025 es la <strong className="font-bold text-white">Teoría de Juegos Corporativa y Soberana</strong>.
             </p>
             <p>
-              Las empresas públicas han comprendido que mantener efectivo en el balance general es una pérdida garantizada frente a la inflación real. El "Playbook de MicroStrategy" se está estandarizando. Además, fondos de pensiones estatales y fondos soberanos de riqueza (países) ya no pueden darse el lujo de tener "cero exposición" a la red de valor más segura del mundo.
+              Mantener tesorería en efectivo pierde poder adquisitivo cuando la inflación supera al tipo remunerado, y algunas cotizadas han empezado a tratar BTC como alternativa parcial — el "Playbook de MicroStrategy". La pregunta abierta no es si la infraestructura existe, sino <strong className="font-bold text-white">a qué ritmo la usan</strong> tesorerías corporativas, fondos de pensiones y reservas soberanas. Ese ritmo es exactamente el que puedes ajustar en el simulador de abajo.
             </p>
             <ul className="space-y-4 mt-8">
               {[
-                "Asignación obligatoria: Los gestores de riesgo penalizan la falta de BTC como negligencia fiduciaria.",
-                "Efecto Red de Liquidez: A mayor adopción, menor volatilidad extrema a la baja, atrayendo aún más capital.",
-                "Reservas Estratégicas: Acumulación silenciosa por parte de estados-nación para evadir sanciones o diversificar reservas."
+                "Presión de asignación: a mayor normalización, más difícil justificar una exposición de cero en un comité de inversión.",
+                "Efecto red de liquidez: más profundidad de mercado tiende a amortiguar los movimientos extremos, lo que atrae a su vez capital con mandatos más estrictos.",
+                "Reservas estratégicas: algunos estados han empezado a explorar BTC como activo de reserva para diversificar."
               ].map((text, i) => (
                 <li key={i} className="flex items-start gap-3 border border-white/10 bg-white/5 p-4">
                   <ShieldCheck className="w-5 h-5 text-[#F7931A] shrink-0 mt-0.5" />
@@ -178,10 +178,10 @@ export default function App() {
           </motion.div>
           <motion.div variants={itemVariants} className="text-lg leading-relaxed opacity-90 space-y-6">
             <p>
-              El argumento bajista asume un entorno macroeconómico estático. Pero la matemática de la deuda soberana global exige devaluación. Los bancos centrales no tienen otra salida matemática que expandir la masa monetaria (imprimir dinero) para financiar déficits perpetuos.
+              El argumento bajista suele asumir un entorno macroeconómico estático. Pero el volumen de deuda soberana acumulada deja pocas salidas cómodas: refinanciar déficits persistentes sin ahogar el crecimiento presiona hacia una masa monetaria más amplia. No es una ley física — es la tendencia observada de las últimas décadas.
             </p>
             <p>
-              Bitcoin es el denominador perfecto. A medida que aumenta la liquidez global, el valor nominal de Bitcoin en dólares o euros <strong className="font-bold text-white">debe subir por definición</strong>. Los máximos de octubre de 2025 simplemente marcaron un nivel de liquidez M2 en ese momento. Cuando el ciclo de relajación cuantitativa (QE) y expansión de crédito se reanuda estructuralmente, esos máximos se convierten en el nuevo soporte.
+              Ahí es donde Bitcoin funciona como <strong className="font-bold text-white">denominador</strong>: si la unidad de cuenta se diluye, los activos escasos tienden a revalorizarse medidos en esa unidad. Los máximos de octubre de 2025 marcaron un nivel de liquidez concreto en ese momento. Si la expansión de crédito se reanuda, ese nivel puede quedar por debajo del siguiente rango; si no lo hace, no hay nada que obligue al precio a volver ahí. Esa condicionalidad es el punto, no una salvedad.
             </p>
           </motion.div>
         </motion.section>
@@ -206,19 +206,21 @@ export default function App() {
       <footer className="border-t border-white/10 mt-24">
         <div className="max-w-4xl mx-auto px-6 py-24 text-center">
           <h2 className="text-5xl font-black tracking-tighter uppercase mb-6">El Veredicto</h2>
-          <p className="text-2xl font-serif italic text-[#F7931A] mb-12 max-w-2xl mx-auto leading-tight">
-            El techo de octubre de 2025 no fue el final del camino, fue la transición de Bitcoin de un activo emergente a un pilar fundamental del sistema financiero global. La escasez y la adopción institucional garantizan una apreciación sistemática a largo plazo.
+          <p className="text-2xl font-serif italic text-[#F7931A] mb-8 max-w-2xl mx-auto leading-tight">
+            Octubre de 2025 se explica mejor como una etapa en la transición de Bitcoin desde activo emergente hacia infraestructura financiera, que como el final del camino. La escasez es un hecho del protocolo; la adopción es una apuesta. Solo la primera está garantizada.
+          </p>
+          <p className="text-sm opacity-60 mb-12 max-w-2xl mx-auto leading-relaxed">
+            Si la tesis falla, fallará por el lado de la demanda: una adopción que se estanque, un ciclo de liquidez que no se reanude, o un shock regulatorio. Por eso el simulador te deja mover esa variable — para que veas qué pasa cuando el supuesto no se cumple.
           </p>
           <div className="inline-flex items-center gap-3 text-[#F7931A] font-bold tracking-widest uppercase text-xs border border-[#F7931A] px-8 py-4 hover:bg-[#F7931A] hover:text-[#0A0A0A] transition-colors cursor-pointer">
             Hold the Line <TrendingUp className="w-4 h-4" />
           </div>
         </div>
 
-        <div className="flex justify-between items-center text-[10px] font-mono opacity-40 uppercase border-t border-white/10 p-6">
-          <div>© 2026 BTC Macro Tesis // Desmontando el FUD del Techo de Ciclo</div>
-          <div className="hidden md:flex gap-8">
-            <span>Confianza Algorítmica: 99.9%</span>
-            <span>Tendencia: Ultra-Bulls</span>
+        <div className="flex flex-col md:flex-row justify-between items-center gap-3 text-[10px] font-mono opacity-40 uppercase border-t border-white/10 p-6 text-center md:text-left">
+          <div>© 2026 BTC Macro Tesis // Tesis personal, no asesoramiento financiero</div>
+          <div className="normal-case tracking-normal">
+            Precios vía CoinGecko · Los escenarios son hipótesis del usuario, no previsiones
           </div>
         </div>
       </footer>

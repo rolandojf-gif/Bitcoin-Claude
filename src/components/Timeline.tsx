@@ -3,40 +3,55 @@ import { motion } from 'motion/react';
 const milestones = [
   {
     date: '2024.01',
+    kind: 'hecho',
     title: 'Integración Institucional',
-    desc: 'Wall Street despliega ETFs Spot. La infraestructura financiera tradicional se ancla definitivamente a la red.'
+    desc: 'La SEC aprueba los ETF spot de Bitcoin en EE. UU. La infraestructura de custodia y distribución de Wall Street queda conectada a la red.'
   },
   {
     date: '2024.04',
+    kind: 'hecho',
     title: 'El Cuarto Halving',
-    desc: 'Emisión reducida a 3.125 BTC. La tasa de inflación anualizada cae por debajo del 1%, marcando el inicio del shock de oferta.'
+    desc: 'La emisión por bloque baja a 3,125 BTC y la inflación anualizada de la oferta cae por debajo del 1 %. Es el dato duro sobre el que descansa el resto del argumento.'
   },
   {
     date: '2025.10',
-    title: 'Punto de Inflexión M2',
-    desc: 'Convergencia de liquidez global. Lo que los analistas denominan "techo" es la fase de consolidación antes de la aceleración fiat.'
+    kind: 'hecho',
+    title: 'Máximo histórico y corrección',
+    desc: 'Bitcoin marca máximos y entra en una fase de consolidación. Que sea techo de ciclo o pausa es, a día de hoy, una interpretación — no un hecho establecido.'
   },
   {
-    date: '2026.Q3',
-    title: 'Teoría de Juegos Soberana',
-    desc: 'Adopción a nivel de tesorerías corporativas globales y reservas estratégicas de estados-nación. El "Playbook MicroStrategy".'
+    date: '2026 →',
+    kind: 'hipótesis',
+    title: 'Adopción como reserva',
+    desc: 'La tesis asume que tesorerías corporativas y reservas soberanas siguen incorporando BTC. Es el supuesto más frágil de los tres pilares y el que conviene vigilar de cerca.'
   },
   {
-    date: '2028.05',
-    title: 'Horizonte de Escasez Absoluta',
-    desc: 'Quinto halving. Bitcoin se convierte matemáticamente en el activo monetario más duro y escaso de la historia humana.'
+    date: '~2028.04',
+    kind: 'programado',
+    title: 'Quinto Halving',
+    desc: 'La emisión vuelve a partirse por dos. La fecha exacta depende del ritmo de bloques, pero el evento en sí está escrito en el protocolo: no depende de ninguna decisión humana.'
   }
 ];
+
+const kindStyles: Record<string, string> = {
+  hecho: 'border-[#F7931A]/40 text-[#F7931A]',
+  hipótesis: 'border-white/20 text-white/50',
+  programado: 'border-emerald-400/40 text-emerald-400/80',
+};
 
 export function Timeline() {
   return (
     <div className="py-8">
-      <div className="flex items-center gap-4 mb-12">
+      <div className="flex flex-wrap items-center gap-4 mb-4">
         <div className="w-12 h-px bg-[#F7931A]"></div>
         <h2 className="text-2xl font-black uppercase tracking-tighter">
           Cronología de Absorción
         </h2>
       </div>
+      <p className="text-[11px] font-mono text-white/70 mb-12 ml-16 leading-relaxed max-w-2xl">
+        Cada hito va etiquetado según lo que es: un hecho verificable, un evento ya programado en el
+        protocolo, o una hipótesis de la tesis. La distinción es deliberada.
+      </p>
 
       <div className="flex flex-col">
         {milestones.map((item, index) => (
@@ -58,8 +73,13 @@ export function Timeline() {
 
             {/* Content */}
             <div className="pb-12 md:pb-16 -mt-1">
-              <div className="text-[10px] font-mono opacity-60 uppercase tracking-widest mb-2 text-[#F7931A]">
-                [ {item.date} ]
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-[10px] font-mono opacity-60 uppercase tracking-widest text-[#F7931A]">
+                  [ {item.date} ]
+                </span>
+                <span className={`text-[9px] font-mono uppercase tracking-widest border px-1.5 py-0.5 ${kindStyles[item.kind]}`}>
+                  {item.kind}
+                </span>
               </div>
               <h3 className="text-xl md:text-2xl font-bold uppercase tracking-tighter mb-3">
                 {item.title}

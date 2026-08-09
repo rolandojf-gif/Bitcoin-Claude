@@ -16,6 +16,8 @@ interface YearPoint {
 /** Only used until the live quote arrives, so the chart has something to draw. */
 const FALLBACK_BTC_PRICE_USD = 65000;
 const YEARS = 10;
+/** Requested tick count on the value axis; d3 rounds to a "nice" nearby number. */
+const Y_TICKS = 10;
 
 interface ProjectionInput {
   /** BTC held in the primary series. */
@@ -49,6 +51,14 @@ function projectScenario({ btc, baseBtc, m2Growth, adoptionRate, basePrice }: Pr
 function findBreakEven(data: YearPoint[], costBasis: number): number | null {
   if (costBasis <= 0) return null;
   return data.find(d => d.value >= costBasis)?.year ?? null;
+}
+
+/** Axis-friendly short form: €1.2M, $850k, €900. */
+function compact(n: number, symbol: string): string {
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000) return `${symbol}${+(n / 1_000_000).toFixed(2)}M`;
+  if (abs >= 1_000) return `${symbol}${Math.round(n / 1000)}k`;
+  return `${symbol}${Math.round(n)}`;
 }
 
 const PRESETS = [
@@ -151,6 +161,12 @@ export function Simulator() {
   const symbol = currency === 'USD' ? '$' : '€';
   const fmt = (n: number) => `${symbol}${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 
+  // The chart labels both currencies at once, so it needs the other side of the pair.
+  const secondarySymbol = currency === 'USD' ? '€' : '$';
+  const secondaryRate = currency === 'USD' ? live.usdToEur : live.eurToUsd;
+  const fmtSecondary = (n: number) =>
+    `${secondarySymbol}${(n * secondaryRate).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+
   // Switching currency should convert the actual figures, not just relabel them.
   const handleCurrencyChange = (next: 'USD' | 'EUR') => {
     if (next === currency) return;
@@ -175,7 +191,8 @@ export function Simulator() {
 
     const width = chartRef.current.clientWidth;
     const height = chartRef.current.clientHeight || 300;
-    const margin = { top: 20, right: 30, bottom: 30, left: 60 };
+    // Wider left gutter: each tick shows two stacked currency labels.
+    const margin = { top: 20, right: 30, bottom: 30, left: 76 };
     const data = projection;
 
     const svg = d3.select(chartRef.current)
@@ -221,23 +238,37 @@ export function Simulator() {
       .call(g => g.selectAll('.tick line').attr('stroke', 'rgba(255,255,255,0.2)'))
       .call(g => g.selectAll('.tick text').attr('fill', 'rgba(255,255,255,0.6)').attr('font-size', '10px'));
 
+    // Each tick carries both currencies: the position is in euros, but BTC is
+    // tracked globally in dollars, so showing only one forces mental arithmetic.
     svg.append('g')
       .attr('transform', `translate(${margin.left},0)`)
-      .call(d3.axisLeft(y).ticks(5).tickFormat(d => {
-        const n = Number(d);
-        if (n >= 1000000) return `${symbol}${n / 1000000}M`;
-        if (n >= 1000) return `${symbol}${n / 1000}k`;
-        return `${symbol}${n}`;
-      }))
+      .call(d3.axisLeft(y).ticks(Y_TICKS).tickFormat(() => ''))
       .call(g => g.select('.domain').attr('stroke', 'rgba(255,255,255,0.2)'))
       .call(g => g.selectAll('.tick line').attr('stroke', 'rgba(255,255,255,0.1)'))
-      .call(g => g.selectAll('.tick text').attr('fill', 'rgba(255,255,255,0.6)').attr('font-size', '10px'));
+      .call(g => g.selectAll<SVGTextElement, d3.NumberValue>('.tick text')
+        .attr('font-size', '9px')
+        .each(function (d) {
+          const n = Number(d);
+          const label = d3.select(this);
+          label.text(null);
+          label.append('tspan')
+            .attr('x', -9)
+            .attr('dy', '-0.15em')
+            .attr('fill', 'rgba(255,255,255,0.7)')
+            .text(compact(n, symbol));
+          label.append('tspan')
+            .attr('x', -9)
+            .attr('dy', '1.15em')
+            .attr('fill', 'rgba(255,255,255,0.35)')
+            .text(compact(n * secondaryRate, secondarySymbol));
+        })
+      );
 
     svg.append('g')
       .attr('class', 'grid')
       .attr('transform', `translate(${margin.left},0)`)
       .call(d3.axisLeft(y)
-        .ticks(5)
+        .ticks(Y_TICKS)
         .tickSize(-width + margin.left + margin.right)
         .tickFormat(() => '')
       )
@@ -259,9 +290,9 @@ export function Simulator() {
         .attr('x', width - margin.right)
         .attr('y', y(costBasis) - 6)
         .attr('text-anchor', 'end')
-        .attr('fill', 'rgba(255,255,255,0.6)')
+        .attr('fill', 'rgba(255,255,255,0.65)')
         .attr('font-size', '9px')
-        .text(`lo invertido · ${fmt(costBasis)}`);
+        .text(`lo invertido · ${fmt(costBasis)} · ${fmtSecondary(costBasis)}`);
     }
 
     // Secondary series: where the position would sit without the simulated buys.
@@ -341,7 +372,7 @@ export function Simulator() {
       });
 
     scalesRef.current = { x, y, data };
-  }, [projection, currency, resizeTick, costBasis]);
+  }, [projection, currency, resizeTick, costBasis, secondaryRate]);
 
   const hoverPoint = hoverIdx !== null ? projection[hoverIdx] : null;
   const hoverPos = hoverPoint && scalesRef.current
@@ -576,12 +607,16 @@ export function Simulator() {
               >
                 <div className="text-white/60">{hoverPoint.year}</div>
                 <div className="text-[#F5F5F5]">
-                  {usingPosition ? 'Posición' : 'Cartera'}: {fmt(hoverPoint.value)}
+                  {usingPosition ? 'Posición' : 'Cartera'}: {fmt(hoverPoint.value)}{' '}
+                  <span className="text-white/45">· {fmtSecondary(hoverPoint.value)}</span>
                 </div>
                 {hoverPoint.baseValue !== null && (
                   <div className="text-white/50">Sin promediar: {fmt(hoverPoint.baseValue)}</div>
                 )}
-                <div className="text-[#F7931A]">BTC: {fmt(hoverPoint.btcPrice)}</div>
+                <div className="text-[#F7931A]">
+                  BTC: {fmt(hoverPoint.btcPrice)}{' '}
+                  <span className="text-[#F7931A]/60">· {fmtSecondary(hoverPoint.btcPrice)}</span>
+                </div>
               </div>
             )}
           </div>

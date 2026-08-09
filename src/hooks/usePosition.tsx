@@ -19,7 +19,9 @@ export interface PositionStep {
 
 interface StoredState {
   baseBtc: number;
-  baseAvgPrice: number;
+  /** Total paid for the existing position. Kept as the source of truth (as in a
+   *  broker statement) so the average price is derived exactly, not rounded. */
+  baseCost: number;
   currentBtcPrice: number;
   purchases: Purchase[];
 }
@@ -28,7 +30,7 @@ const STORAGE_KEY = 'btc-claude-position-v1';
 
 const DEFAULT_STATE: StoredState = {
   baseBtc: 0,
-  baseAvgPrice: 0,
+  baseCost: 0,
   currentBtcPrice: 0,
   purchases: [],
 };
@@ -57,10 +59,13 @@ function loadState(): StoredState {
 
     const obj = parsed as Record<string, unknown>;
     const rawPurchases = Array.isArray(obj.purchases) ? obj.purchases : [];
+    const baseBtc = toNumber(obj.baseBtc);
+    // Older payloads stored the average price instead of the total cost.
+    const baseCost = toNumber(obj.baseCost) || baseBtc * toNumber(obj.baseAvgPrice);
 
     return {
-      baseBtc: toNumber(obj.baseBtc),
-      baseAvgPrice: toNumber(obj.baseAvgPrice),
+      baseBtc,
+      baseCost,
       currentBtcPrice: toNumber(obj.currentBtcPrice),
       purchases: rawPurchases
         .filter((p): p is Record<string, unknown> => typeof p === 'object' && p !== null)
@@ -78,11 +83,11 @@ function loadState(): StoredState {
 
 export interface PositionState {
   baseBtc: number;
-  baseAvgPrice: number;
+  baseCost: number;
   currentBtcPrice: number;
   purchases: Purchase[];
   setBaseBtc: (v: number) => void;
-  setBaseAvgPrice: (v: number) => void;
+  setBaseCost: (v: number) => void;
   setCurrentBtcPrice: (v: number) => void;
   addPurchase: () => void;
   updatePurchase: (id: string, patch: Partial<Purchase>) => void;
@@ -101,7 +106,7 @@ const PositionContext = createContext<PositionState | null>(null);
 
 export function PositionProvider({ usdToEur, children }: { usdToEur: number; children: ReactNode }) {
   const [baseBtc, setBaseBtc] = useState(0);
-  const [baseAvgPrice, setBaseAvgPrice] = useState(0);
+  const [baseCost, setBaseCost] = useState(0);
   const [currentBtcPrice, setCurrentBtcPrice] = useState(0);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -110,7 +115,7 @@ export function PositionProvider({ usdToEur, children }: { usdToEur: number; chi
   useEffect(() => {
     const state = loadState();
     setBaseBtc(state.baseBtc);
-    setBaseAvgPrice(state.baseAvgPrice);
+    setBaseCost(state.baseCost);
     setCurrentBtcPrice(state.currentBtcPrice);
     setPurchases(state.purchases);
     setLoaded(true);
@@ -118,16 +123,15 @@ export function PositionProvider({ usdToEur, children }: { usdToEur: number; chi
 
   useEffect(() => {
     if (!loaded) return;
-    const state: StoredState = { baseBtc, baseAvgPrice, currentBtcPrice, purchases };
+    const state: StoredState = { baseBtc, baseCost, currentBtcPrice, purchases };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [loaded, baseBtc, baseAvgPrice, currentBtcPrice, purchases]);
+  }, [loaded, baseBtc, baseCost, currentBtcPrice, purchases]);
 
   const steps = useMemo<PositionStep[]>(() => {
     const safeBaseBtc = Math.max(0, baseBtc || 0);
-    const safeBaseAvgPrice = Math.max(0, baseAvgPrice || 0);
 
     let btc = safeBaseBtc;
-    let cost = safeBaseBtc * safeBaseAvgPrice;
+    let cost = Math.max(0, baseCost || 0);
 
     const rows: PositionStep[] = [{
       label: 'Posición actual',
@@ -154,15 +158,15 @@ export function PositionProvider({ usdToEur, children }: { usdToEur: number; chi
     });
 
     return rows;
-  }, [baseBtc, baseAvgPrice, purchases, usdToEur]);
+  }, [baseBtc, baseCost, purchases, usdToEur]);
 
   const value: PositionState = {
     baseBtc,
-    baseAvgPrice,
+    baseCost,
     currentBtcPrice,
     purchases,
     setBaseBtc,
-    setBaseAvgPrice,
+    setBaseCost,
     setCurrentBtcPrice,
     addPurchase: () =>
       setPurchases(list => [...list, { id: makeId(), amount: 1000, currency: 'EUR', price: 90000 }]),

@@ -20,8 +20,8 @@ export function PositionTracker() {
   const livePrice = useLiveBtcPrice();
   const fieldId = useId();
   const {
-    baseBtc, baseAvgPrice, currentBtcPrice, purchases,
-    setBaseBtc, setBaseAvgPrice, setCurrentBtcPrice,
+    baseBtc, baseCost, currentBtcPrice, purchases,
+    setBaseBtc, setBaseCost, setCurrentBtcPrice,
     addPurchase, updatePurchase, removePurchase,
     steps, base, final,
   } = usePosition();
@@ -110,17 +110,25 @@ export function PositionTracker() {
             />
           </div>
           <div className="space-y-2">
-            <label htmlFor={`${fieldId}-avg`} className="text-xs uppercase tracking-widest opacity-80 block">Precio medio actual (€/BTC)</label>
+            <label htmlFor={`${fieldId}-cost`} className="text-xs uppercase tracking-widest opacity-80 flex items-center gap-1.5">
+              Coste total (€)
+              <InfoTip text="Lo que pagaste en total por esos BTC, tal cual figura en tu bróker u hoja de cálculo. Se pide el coste y no el precio medio porque así el precio medio sale exacto, sin arrastrar redondeos." />
+            </label>
             <input
-              id={`${fieldId}-avg`}
+              id={`${fieldId}-cost`}
               type="number"
               min={0}
-              step={1000}
-              value={baseAvgPrice || ''}
-              onChange={e => setBaseAvgPrice(Math.max(0, Number(e.target.value) || 0))}
-              placeholder="p.ej. 95000"
+              step={500}
+              value={baseCost || ''}
+              onChange={e => setBaseCost(Math.max(0, Number(e.target.value) || 0))}
+              placeholder="p.ej. 4500"
               className="w-full bg-[#0A0A0A] border border-white/20 p-2 font-mono text-white outline-none focus:border-[#F7931A] transition-colors"
             />
+            <p className="text-[10px] font-mono normal-case text-white/50">
+              {base.avgPrice > 0
+                ? `Precio medio: €${base.avgPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}/BTC`
+                : 'El precio medio se calcula solo.'}
+            </p>
           </div>
           <div className="space-y-2">
             <label htmlFor={`${fieldId}-today`} className="text-xs uppercase tracking-widest opacity-80 flex items-center gap-1.5">

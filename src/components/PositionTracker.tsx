@@ -384,10 +384,10 @@ export function PositionTracker() {
               <p className="text-lg font-mono text-[#F5F5F5] mt-1">
                 {fmtEur(base.avgPrice)} → <span className="text-[#F7931A]">{fmtEur(final.avgPrice)}</span>
               </p>
-              <p className="text-xs font-mono opacity-50 mt-0.5">
-                {fmtUsd(base.avgPrice * eurToUsd)} → <span className="text-[#F7931A]/70">{fmtUsd(final.avgPrice * eurToUsd)}</span>
+              <p className="text-sm font-mono text-white/80 mt-0.5">
+                {fmtUsd(base.avgPrice * eurToUsd)} → <span className="text-[#F7931A]">{fmtUsd(final.avgPrice * eurToUsd)}</span>
               </p>
-              <p className="text-[10px] font-mono opacity-40 mt-1">
+              <p className="text-[11px] font-mono text-white/60 mt-1">
                 {avgPriceDelta === 0
                   ? 'Sin cambio'
                   : `${avgPriceDelta < 0 ? '↓ baja' : '↑ sube'} ${fmtEur(Math.abs(avgPriceDelta))} · ${fmtUsd(Math.abs(avgPriceDelta) * eurToUsd)}`}
